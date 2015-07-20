@@ -1,0 +1,149 @@
+---
+title: "Machine Learning"
+author: "Dave!"
+date: "Monday, July 13, 2015"
+output: html_document
+---
+
+
+Background
+
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+##Data 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+##Objectives
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. 
+2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+
+
+Reproducibility 
+
+Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis. 
+
+
+```{r}
+#Load required packages
+library(RColorBrewer)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(tree)
+#sets seed
+set.seed(1234)
+```
+
+##Getting and cleaning of data
+
+```{r}
+#Pull in testing and training data sets
+trainer<- read.csv("pml-training2.csv",na.strings=c("NA","#DIV/0!",""))
+tester<- read.csv("pml-testing2.csv",na.strings=c("NA","#DIV/0!",""))
+
+dim(trainer)
+dim(tester)
+
+#Deletes any blank columns
+trainer<-trainer[,colSums(is.na(trainer)) == 0]
+tester <-tester[,colSums(is.na(tester)) == 0]
+#Removes everything but accelerometer data for belt, forearm, arm, and dumbells
+#Removes everything but accelerometer data for belt, forearm, arm, and dumbells
+trainer   <-trainer[,-c(1:7)]
+col.train <- ncol(trainer)
+row.train <-nrow(trainer)
+tester <-tester[,-c(1:7)]
+col.test <-ncol(tester)
+row.test <- nrow(tester)
+
+training <- data.frame(ncol=col.train, nrow= row.train)
+testing <- data.frame(ncol=col.test, nrow =row.test)
+
+#imputes any "NA" vales using the mean value of that column
+for (i in 1:ncol(trainer)){
+  training[,i] <- mean(trainer[,i])
+  for (j in 1:nrow(trainer)){
+    if(trainer[j,i]=="NA"){
+      trainer[j,i]==0
+      training[,i] <- mean(trainer[,i])
+      trainer[j,i] <- training[,i]
+    }  
+  }
+}
+for (i in 1:ncol(tester)){
+    for (j in 1:nrow(tester)){
+    if (trainer[j,i] =="NA"){
+      tester[j,i] ==0
+      testing[,i] <- mean(tester[,i])
+      tester[j,i] <-testing[,i]
+    }
+  }
+}
+
+
+#sets up partition with training at 60% AND TESTING AT 40%
+trained <- createDataPartition(y=trainer$classe, p=0.6, list=FALSE)
+trains <-trainer[trained,]
+tests <- trainer[-trained,]
+
+#Check the data magnatude and determine which class is the most frequent
+plot(trains$classe, col="magenta", main="Class levels within Training data", xlab="classe levels", ylab="Frequency")
+```
+
+As seen above the classes are in the same magnatude. Class A occurs with the highest frequency.
+
+Next we build a model and formulate predictions against the testing data.
+
+```{r}
+#build classification model using rpart
+train.model <- rpart(classe ~ ., data = trains, method="class")
+#build prediction against testing model
+pred.train <- predict(train.model,tests,type="class")
+#train.model
+rpart.plot(train.model, main ="Classification Tree", extra=102,under=TRUE,faclen=0)
+
+confusionMatrix(pred.train,tests$classe)
+```
+
+BUild a new model using Random Forest.
+
+```{r}
+train.model2 <- randomForest(classe ~.,data=trains,method = "class")
+pred.mod2 <- predict(train.model2,tests,type="class")
+
+confusionMatrix(pred.mod2,tests$classe)
+```
+
+Investigation of the confusion matrix outputs yeilds that the Random Forest prediction model is, as expected, better than the rpart model. The p.values are both 2.2e-16, the 95% CI for model 1 (rpart) is 72.9%% with a 73.92% accuracy while the model 2 95% CI is 99.02% with a 99.24% accuracy.
+
+Thus, model 2 is chosen.
+
+```{r}
+pred.model.final <- predict(train.model2,tester,type="class")
+pred.model.final
+
+#Writes each answer into its own individual file
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred.model.final)
+```
