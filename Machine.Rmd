@@ -100,11 +100,8 @@ trained <- createDataPartition(y=trainer$classe, p=0.6, list=FALSE)
 trains <-trainer[trained,]
 tests <- trainer[-trained,]
 
-#Check the data magnatude and determine which class is the most frequent
-plot(trains$classe, col="magenta", main="Class levels within Training data", xlab="classe levels", ylab="Frequency")
 ```
 
-As seen above the classes are in the same magnatude. Class A occurs with the highest frequency.
 
 Next we build a model and formulate predictions against the testing data.
 
